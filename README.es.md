@@ -1,190 +1,489 @@
-Editor Markdown Visual - Guía de Instalación
+-----
+
+### `README.es.md`
+
+````markdown
+# Visual Markdown Editor - Guía de Instalación 📝
+
 Esta es una aplicación web ligera escrita en Python que proporciona un editor de Markdown visual (WYSIWYG), protegido por autenticación de usuario y contraseña.
 
-Requisitos
-Un servidor con Linux (se recomiendan distribuciones basadas en Debian/Ubuntu).
+***
+## 📋 Prerrequisitos
 
-Python 3.8 o superior.
+* Un servidor **Linux** (se recomiendan distribuciones basadas en Debian/Ubuntu).
+* **Python 3.8** o superior.
+* **pip** (gestor de paquetes de Python).
+* **venv** (módulo para crear entornos virtuales).
 
-pip (gestor de paquetes de Python).
+***
+## ⚙️ Instalación
 
-venv (módulo para crear entornos virtuales).
-
-1. Instalación
 Sigue estos pasos para configurar la aplicación en tu servidor.
 
-a. Prepara el Directorio y el Código
-Primero, crea un directorio para la aplicación y navega hacia él.
-
+### a. Preparar el Directorio y el Código
+Crea un directorio para la aplicación y navega dentro de él.
+```bash
+# Crear el directorio principal para el editor
 mkdir ~/markdown-editor
+
+# Entrar en el nuevo directorio
 cd ~/markdown-editor
+````
 
-Ahora, crea los archivos app.py, hash_generator.py y la estructura de carpetas necesaria.
+Ahora, crea los archivos `app.py`, `hash_generator.py` y la estructura de carpetas necesaria.
 
-b. Crea y Activa el Entorno Virtual
+### b. Crear y Activar el Entorno Virtual
+
 Es una buena práctica aislar las dependencias del proyecto en un entorno virtual.
 
+```bash
+# Crear el entorno virtual llamado 'venv'
 python3 -m venv venv
+
+# Activar el entorno virtual
 source venv/bin/activate
+```
 
-Verás (venv) al principio de la línea de comandos, indicando que el entorno está activo.
+Verás **`(venv)`** al principio de tu línea de comandos, lo que indica que el entorno está activo.
 
-c. Instala las Dependencias
+### c. Instalar Dependencias
+
 Instala las librerías de Python necesarias.
 
+```bash
+# Instalar Flask, Waitress y Werkzeug desde pip
 pip install Flask waitress Werkzeug
+```
 
-2. Configuración de Seguridad
-Las credenciales de usuario se gestionan de forma segura mediante hashes y variables de entorno.
+-----
 
-a. Genera los Hashes de Contraseña
-Usa el script hash_generator.py para convertir las contraseñas que desees en hashes seguros. Ejecuta el siguiente comando por cada usuario que quieras crear.
+## 🔒 Configuración de Seguridad (Método Recomendado)
 
-# Ejemplo para crear un hash para la contraseña 'miClaveSecreta123'
-python hash_generator.py 'miClaveSecreta123'
+Gestionaremos las credenciales de forma segura y limpia, separando las contraseñas del archivo de servicio.
 
-Copia el hash completo que se genera en la terminal (ej. scrypt:32768:8:1$...).
+### a. Generar Hashes de Contraseña
 
-b. Configura las Variables de Entorno
-Para una prueba manual, puedes exportar las variables directamente en tu terminal. Recuerda que estas variables se perderán si cierras la sesión. Más adelante, las configuraremos de forma permanente en el servicio systemd.
+Usa el script `hash_generator.py` para convertir las contraseñas deseadas en hashes seguros.
 
-# Sintaxis: export AUTH_USER_<nombre_de_usuario>='<hash_generado>'
-export AUTH_USER_admin='el_hash_que_generaste_para_admin'
-export AUTH_USER_editor1='el_hash_que_generaste_para_otro_usuario'
+```bash
+# Asegúrate de que tu entorno virtual esté activado
+# Uso: python hash_generator.py 'tu_contraseña'
+python hash_generator.py 'mySecretKey123'
+```
 
-3. Ejecución
-a. Ejecución Manual (para pruebas)
-Con el entorno venv activado y las variables exportadas, puedes iniciar el servidor:
+Copia el hash completo que se genera en la terminal (ej: `scrypt:32768:8:1$...`). **No necesitas modificarlo.**
 
+### b. Crear Archivo de Configuración de Entorno
+
+Crearemos un archivo dedicado para almacenar los hashes de los usuarios.
+
+```bash
+# Crear un directorio para la configuración
+sudo mkdir -p /etc/markdown
+
+# Crear y editar el archivo de configuración
+sudo nano /etc/markdown/markdown.conf
+```
+
+Dentro de este archivo, pega los hashes con el formato `CLAVE=VALOR`. No uses comillas ni `export`.
+
+```ini
+# /etc/markdown/markdown.conf
+# Variables de entorno para el editor de Markdown.
+# Pega aquí el hash directamente desde la salida del script.
+
+AUTH_USER_admin=scrypt:32768:8:1$LBUyfkd9sC2KI837$65d189...
+AUTH_USER_editor1=scrypt:32768:8:1$anotherHashValue...
+```
+
+-----
+
+## 🚀 Ejecución de la Aplicación
+
+### a. Ejecución Manual (para pruebas)
+
+Para probar manualmente, exporta las variables y ejecuta la aplicación.
+
+```bash
+# Exportar las variables para la sesión actual
+export AUTH_USER_admin='scrypt:32768:8:1$LBUyfkd9sC2KI837$...'
+
+# Iniciar el servidor
 python app.py
+```
 
-La aplicación estará disponible en http://<IP_de_tu_servidor>:3555.
+La aplicación estará disponible en `http://<IP_de_tu_servidor>:3555`.
 
-b. Ejecución como Servicio (systemd) - Recomendado
-Para que la aplicación se ejecute de forma continua en segundo plano y se reinicie automáticamente, crearemos un servicio systemd.
+### b. Ejecución como Servicio (`systemd`)
 
-1. Crea el archivo de servicio:
+Esta es la forma correcta de ejecutar la aplicación en producción.
 
-Usa un editor de texto como nano para crear el archivo de configuración del servicio.
+1.  **Crear el archivo del servicio:**
+    ```bash
+    sudo nano /etc/systemd/system/markdown-editor.service
+    ```
+2.  **Pegar el siguiente contenido:**
+    Este contenido ya está actualizado para usar el archivo de configuración externo, lo que lo hace mucho más limpio.
+    ```ini
+    [Unit]
+    Description=Visual Markdown Editor Server
+    After=network.target
 
-sudo nano /etc/systemd/system/markdown-editor.service
+    [Service]
+    # Cambia 'your_user' por tu nombre de usuario real
+    User=your_user
+    Group=www-data
 
-2. Pega el siguiente contenido:
+    # Asegúrate de que esta ruta es correcta
+    WorkingDirectory=/home/your_user/markdown-editor
+    ExecStart=/home/your_user/markdown-editor/venv/bin/python app.py
 
-¡Importante! Modifica las siguientes líneas:
+    # Carga las variables de usuario desde el archivo de configuración externo
+    EnvironmentFile=/etc/markdown/markdown.conf
 
-User: Cambia tu_usuario por tu nombre de usuario en el servidor.
+    [Install]
+    WantedBy=multi-user.target
+    ```
+3.  **Habilitar e Iniciar el Servicio:**
+    ```bash
+    # Recargar la configuración de systemd
+    sudo systemctl daemon-reload
 
-WorkingDirectory: Asegúrate de que la ruta /home/tu_usuario/markdown-editor sea correcta.
+    # Habilitar el servicio para que inicie en el arranque
+    sudo systemctl enable markdown-editor.service
 
-Environment: Pega aquí las variables de entorno con los hashes que generaste.
+    # Iniciar el servicio ahora
+    sudo systemctl start markdown-editor.service
+    ```
 
-[Unit]
-Description=Servidor del Editor Markdown Visual
-After=network.target
+-----
 
-[Service]
-# Cambia 'tu_usuario' por tu nombre de usuario real
-User=tu_usuario
-Group=www-data
+## 🛠️ Gestión del Servicio
 
-# Cambia la ruta si has instalado la aplicación en otro lugar
-WorkingDirectory=/home/tu_usuario/markdown-editor
-ExecStart=/home/tu_usuario/markdown-editor/venv/bin/python app.py
+  * **Verificar estado:** `sudo systemctl status markdown-editor.service`
+  * **Ver logs en tiempo real:** `sudo journalctl -u markdown-editor.service -f`
+  * **Reiniciar el servicio:** `sudo systemctl restart markdown-editor.service`
+  * **Detener el servicio:** `sudo systemctl stop markdown-editor.service`
 
-# --- Variables de Entorno para los usuarios ---
-# Aquí se definen los usuarios y sus hashes de forma permanente.
-# Reemplaza los valores de ejemplo con los tuyos.
-Environment="AUTH_USER_admin=scrypt:32768:8:1$..."
-Environment="AUTH_USER_editor1=scrypt:32768:8:1$..."
+-----
 
-[Install]
-WantedBy=multi-user.target
+## 🛡️ Seguridad Avanzada: Integración con Fail2Ban
 
-3. Habilita e Inicia el Servicio:
+Para protegerte contra ataques de fuerza bruta, puedes integrar `fail2ban` para banear automáticamente las IPs después de múltiples intentos de inicio de sesión fallidos.
 
-Una vez guardado el archivo, ejecuta los siguientes comandos para que systemd reconozca y ponga en marcha tu servicio.
+### a. Instalar Fail2Ban
 
-# Recarga la configuración de systemd
-sudo systemctl daemon-reload
-
-# Habilita el servicio para que se inicie automáticamente con el sistema
-sudo systemctl enable markdown-editor.service
-
-# Inicia el servicio ahora mismo
-sudo systemctl start markdown-editor.service
-
-4. Gestión del Servicio
-Puedes gestionar el servicio con los siguientes comandos:
-
-Verificar el estado: sudo systemctl status markdown-editor.service
-
-Ver los logs en tiempo real: sudo journalctl -u markdown-editor.service -f
-
-Reiniciar el servicio: sudo systemctl restart markdown-editor.service
-
-Detener el servicio: sudo systemctl stop markdown-editor.service
-
-5. Seguridad Avanzada: Integración con Fail2Ban
-Para protegerte contra ataques de fuerza bruta, puedes integrar fail2ban para que bloquee automáticamente las IPs después de múltiples intentos de inicio de sesión fallidos.
-
-a. Instala Fail2Ban
 Si no lo tienes instalado, añádelo a tu servidor:
 
+```bash
 sudo apt update
 sudo apt install fail2ban
+```
 
-b. Crea el Archivo de Log
-La aplicación necesita un lugar donde escribir sus logs. Crea el archivo de log y dale al usuario de la aplicación permiso para escribir en él.
+### b. Crear el Archivo de Log
 
+La aplicación necesita un lugar donde escribir sus logs.
+
+```bash
+# Crear el archivo de log vacío
 sudo touch /var/log/markdown-editor.log
-sudo chown tu_usuario:www-data /var/log/markdown-editor.log
+
+# Asignar propietario (tu usuario) y grupo (www-data)
+sudo chown your_user:www-data /var/log/markdown-editor.log
+
+# Establecer permisos de lectura/escritura
 sudo chmod 664 /var/log/markdown-editor.log
+```
 
-Recuerda reemplazar tu_usuario por tu nombre de usuario real (el mismo que usaste en el archivo de servicio de systemd).
+### c. Crear el Filtro de Fail2Ban
 
-c. Crea el Filtro de Fail2Ban
-Este filtro le dice a fail2ban cómo reconocer un intento de inicio de sesión fallido en nuestro archivo de log.
-
-Crea un nuevo archivo de filtro:
-
+```bash
+# Crear un nuevo archivo de filtro
 sudo nano /etc/fail2ban/filter.d/markdown-editor.conf
+```
 
 Pega el siguiente contenido:
 
+```ini
 [Definition]
 failregex = ^.* Failed login attempt for user '.*' from IP '<HOST>'$
 ignoreregex =
+```
 
-d. Crea la "Jaula" (Jail) de Fail2Ban
-Esta configuración de "jaula" vincula nuestro filtro a una acción (bloquear la IP).
+### d. Crear la Jaula (Jail) de Fail2Ban
 
-Crea un nuevo archivo de jaula:
-
+```bash
+# Crear un nuevo archivo de configuración de jaula
 sudo nano /etc/fail2ban/jail.d/markdown-editor.local
+```
 
-Pega el siguiente contenido. Esta configuración bloqueará una IP durante 10 minutos después de 3 intentos fallidos en una ventana de 10 minutos.
+Pega lo siguiente. Esto baneará una IP por **10 minutos** después de **3 intentos fallidos**.
 
+```ini
 [markdown-editor]
-enabled = true
-port = 3555
-filter = markdown-editor
-logpath = /var/log/markdown-editor.log
+enabled  = true
+port     = 3555
+filter   = markdown-editor
+logpath  = /var/log/markdown-editor.log
 maxretry = 3
 findtime = 600
-bantime = 600
+bantime  = 600
+```
 
-e. Reinicia y Verifica
-Aplica la nueva configuración reiniciando tanto tu aplicación como el servicio de fail2ban.
+### e. Reiniciar y Verificar
 
-# Reinicia tu app para aplicar los cambios de logging
+```bash
+# Reinicia tu app y fail2ban
 sudo systemctl restart markdown-editor.service
-
-# Reinicia fail2ban para cargar la nueva jaula
 sudo systemctl restart fail2ban
 
-Puedes comprobar el estado de tu nueva jaula con:
-
+# Comprueba el estado de la jaula
 sudo fail2ban-client status markdown-editor
+```
 
-Ahora, cualquier IP que falle al iniciar sesión 3 veces será bloqueada automáticamente por el firewall de tu servidor.
+````
+
+***
+### `README.md`
+
+```markdown
+# Visual Markdown Editor - Installation Guide 📝
+
+This is a lightweight web application written in Python that provides a visual (WYSIWYG) Markdown editor, protected by user and password authentication.
+
+***
+## 📋 Prerequisites
+
+* A **Linux** server (Debian/Ubuntu-based distributions are recommended).
+* **Python 3.8** or higher.
+* **pip** (Python package manager).
+* **venv** (module for creating virtual environments).
+
+***
+## ⚙️ Installation
+
+Follow these steps to set up the application on your server.
+
+### a. Prepare the Directory and Code
+Create a directory for the application and navigate into it.
+```bash
+# Create the main directory for the editor
+mkdir ~/markdown-editor
+
+# Move into the new directory
+cd ~/markdown-editor
+````
+
+Now, create the `app.py`, `hash_generator.py` files, and the necessary folder structure.
+
+### b. Create and Activate the Virtual Environment
+
+It's a best practice to isolate project dependencies in a virtual environment.
+
+```bash
+# Create a virtual environment named 'venv'
+python3 -m venv venv
+
+# Activate the virtual environment
+source venv/bin/activate
+```
+
+You will see **`(venv)`** at the beginning of your command prompt, indicating the environment is active.
+
+### c. Install Dependencies
+
+Install the required Python libraries.
+
+```bash
+# Install Flask, Waitress, and Werkzeug using pip
+pip install Flask waitress Werkzeug
+```
+
+-----
+
+## 🔒 Security Configuration (Recommended Method)
+
+We will manage user credentials securely and cleanly by separating the passwords from the service file.
+
+### a. Generate Password Hashes
+
+Use the `hash_generator.py` script to convert your desired passwords into secure hashes.
+
+```bash
+# Make sure your virtual environment is activated
+# Usage: python hash_generator.py 'your_password'
+python hash_generator.py 'mySecretKey123'
+```
+
+Copy the full hash generated by the terminal (e.g., `scrypt:32768:8:1$...`). **You do not need to modify it.**
+
+### b. Create an Environment Configuration File
+
+We will create a dedicated file to store the user hashes.
+
+```bash
+# Create a directory for the configuration
+sudo mkdir -p /etc/markdown
+
+# Create and edit the configuration file
+sudo nano /etc/markdown/markdown.conf
+```
+
+Inside this file, paste the hashes using the `KEY=VALUE` format. Do not use quotes or the `export` command.
+
+```ini
+# /etc/markdown/markdown.conf
+# Environment variables for the Markdown editor.
+# Paste the hash directly from the script's output here.
+
+AUTH_USER_admin=scrypt:32768:8:1$LBUyfkd9sC2KI837$65d189...
+AUTH_USER_editor1=scrypt:32768:8:1$anotherHashValue...
+```
+
+-----
+
+## 🚀 Running the Application
+
+### a. Manual Execution (for testing)
+
+To test manually, export the variables and run the application.
+
+```bash
+# Export variables for the current session
+export AUTH_USER_admin='scrypt:32768:8:1$LBUyfkd9sC2KI837$...'
+
+# Start the server
+python app.py
+```
+
+The application will be available at `http://<your_server_IP>:3555`.
+
+### b. Running as a Service (`systemd`)
+
+This is the proper way to run the application in production.
+
+1.  **Create the service file:**
+    ```bash
+    sudo nano /etc/systemd/system/markdown-editor.service
+    ```
+2.  **Paste the following content:**
+    This template is already updated to use the external configuration file, which makes it much cleaner.
+    ```ini
+    [Unit]
+    Description=Visual Markdown Editor Server
+    After=network.target
+
+    [Service]
+    # Change 'your_user' to your actual username
+    User=your_user
+    Group=www-data
+
+    # Make sure this path is correct
+    WorkingDirectory=/home/your_user/markdown-editor
+    ExecStart=/home/your_user/markdown-editor/venv/bin/python app.py
+
+    # Load user variables from the external configuration file
+    EnvironmentFile=/etc/markdown/markdown.conf
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+3.  **Enable and Start the Service:**
+    ```bash
+    # Reload the systemd configuration
+    sudo systemctl daemon-reload
+
+    # Enable the service to start on boot
+    sudo systemctl enable markdown-editor.service
+
+    # Start the service now
+    sudo systemctl start markdown-editor.service
+    ```
+
+-----
+
+## 🛠️ Managing the Service
+
+  * **Check status:** `sudo systemctl status markdown-editor.service`
+  * **View real-time logs:** `sudo journalctl -u markdown-editor.service -f`
+  * **Restart the service:** `sudo systemctl restart markdown-editor.service`
+  * **Stop the service:** `sudo systemctl stop markdown-editor.service`
+
+-----
+
+## 🛡️ Advanced Security: Fail2Ban Integration
+
+To protect against brute-force attacks, you can integrate `fail2ban` to automatically ban IPs after multiple failed login attempts.
+
+### a. Install Fail2Ban
+
+If you don't have it installed, add it to your server:
+
+```bash
+sudo apt update
+sudo apt install fail2ban
+```
+
+### b. Create the Log File
+
+The application needs a place to write its logs.
+
+```bash
+# Create an empty log file
+sudo touch /var/log/markdown-editor.log
+
+# Assign ownership to your user and the www-data group
+sudo chown your_user:www-data /var/log/markdown-editor.log
+
+# Set read/write permissions
+sudo chmod 664 /var/log/markdown-editor.log
+```
+
+### c. Create the Fail2Ban Filter
+
+```bash
+# Create a new filter configuration file
+sudo nano /etc/fail2ban/filter.d/markdown-editor.conf
+```
+
+Paste the following content:
+
+```ini
+[Definition]
+failregex = ^.* Failed login attempt for user '.*' from IP '<HOST>'$
+ignoreregex =
+```
+
+### d. Create the Fail2Ban Jail
+
+```bash
+# Create a new local jail configuration file
+sudo nano /etc/fail2ban/jail.d/markdown-editor.local
+```
+
+Paste the following. This will ban an IP for **10 minutes** after **3 failed attempts**.
+
+```ini
+[markdown-editor]
+enabled  = true
+port     = 3555
+filter   = markdown-editor
+logpath  = /var/log/markdown-editor.log
+maxretry = 3
+findtime = 600
+bantime  = 600
+```
+
+### e. Restart and Verify
+
+```bash
+# Restart your app and fail2ban
+sudo systemctl restart markdown-editor.service
+sudo systemctl restart fail2ban
+
+# Check the jail status
+sudo fail2ban-client status markdown-editor
+```
+
+```
+```
