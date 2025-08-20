@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Markdown Visual</title>
+    
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Toast UI Editor: CSS y JS -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
+    <!-- Plugin para renderizar fórmulas KaTeX (matemáticas) - TEMPORALMENTE DESACTIVADO -->
+    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css"> -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script> -->
+    <!-- <script src="https://uicdn.toast.com/editor-plugin-katex/latest/toastui-editor-plugin-katex.min.js"></script> -->
+
+    <style>
+        body, html {
+            margin: 0; padding: 0; height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif;
+        }
+        .main-container {
+            display: grid; grid-template-columns: 250px 1fr; height: 100vh;
+        }
+        .editor-area {
+            display: flex; flex-direction: column; height: 100%;
+        }
+        #editor {
+            flex-grow: 1;
+        }
+        .toastui-editor-defaultUI {
+            border: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="main-container">
+        <!-- Barra lateral para archivos -->
+        <aside class="bg-gray-800 text-white p-4 flex flex-col">
+            <h1 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">Archivos</h1>
+            <ul id="file-list" class="flex-grow overflow-y-auto"></ul>
+            <div class="mt-4">
+                <button id="new-file-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-300">
+                    Nuevo Archivo
+                </button>
+            </div>
+        </aside>
+
+        <!-- Área principal con el editor -->
+        <main class="editor-area bg-white">
+            <header id="main-header" class="flex items-center justify-between p-3 border-b bg-gray-50">
+                <input type="text" id="filename-input" placeholder="nombre-del-archivo.md" class="w-full text-lg p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button id="save-btn" class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-300 whitespace-nowrap">
+                    Guardar Cambios
+                </button>
+            </header>
+            <div id="editor"></div>
+        </main>
+    </div>
+
+    <script>
+        window.onload = () => {
+            try {
+                const editorElement = document.querySelector('#editor');
+                const headerElement = document.querySelector('#main-header');
+
+                const editor = new toastui.Editor({
+                    el: editorElement,
+                    initialEditType: 'wysiwyg',
+                    previewStyle: 'vertical',
+                    usageStatistics: false,
+                    // CORRECCIÓN: Eliminamos la sección de plugins que causaba el error
+                    // plugins: [
+                    //     [toastui.Editor.plugin.katex, { katexOptions: { output: 'html' } }]
+                    // ]
+                });
+
+                function setEditorHeight() {
+                    const headerHeight = headerElement.offsetHeight;
+                    const windowHeight = window.innerHeight;
+                    const editorHeight = windowHeight - headerHeight;
+                    editor.setHeight(`${editorHeight}px`);
+                }
+
+                setEditorHeight();
+                window.addEventListener('resize', setEditorHeight);
+
+                const fileList = document.getElementById('file-list');
+                const filenameInput = document.getElementById('filename-input');
+                const saveBtn = document.getElementById('save-btn');
+                const newFileBtn = document.getElementById('new-file-btn');
+                let currentFile = '';
+
+                async function loadFiles() {
+                    try {
+                        const response = await fetch('/api/files');
+                        if (!response.ok) throw new Error('Error al cargar la lista de archivos');
+                        const files = await response.json();
+                        fileList.innerHTML = '';
+                        if (files.length === 0) {
+                            fileList.innerHTML = '<li class="text-gray-400 text-sm">No hay archivos.</li>';
+                        } else {
+                            files.forEach(file => {
+                                const li = document.createElement('li');
+                                li.innerHTML = `<a href="#" class="block py-1 px-2 rounded hover:bg-gray-700 transition duration-200">${file}</a>`;
+                                li.addEventListener('click', (e) => { e.preventDefault(); loadFile(file); });
+                                fileList.appendChild(li);
+                            });
+                        }
+                    } catch (error) { console.error('Error en loadFiles:', error); }
+                }
+
+                async function loadFile(filename) {
+                    try {
+                        const response = await fetch(`/api/files/${filename}`);
+                        if (!response.ok) throw new Error(`Error al cargar el archivo: ${filename}`);
+                        const data = await response.json();
+                        editor.setMarkdown(data.content || '');
+                        filenameInput.value = data.filename;
+                        currentFile = data.filename;
+                    } catch (error) { console.error('Error en loadFile:', error); alert(error.message); }
+                }
+
+                async function saveFile() {
+                    const filename = filenameInput.value.trim();
+                    if (!filename) { alert('Por favor, introduce un nombre de archivo.'); return; }
+                    const content = editor.getMarkdown();
+                    try {
+                        const response = await fetch(`/api/files/${filename}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: content }),
+                        });
+                        const result = await response.json();
+                        if (!response.ok) { throw new Error(result.error || 'Error desconocido al guardar.'); }
+                        alert(result.message);
+                        loadFiles();
+                        currentFile = filename;
+                    } catch (error) { console.error('Error en saveFile:', error); alert(error.message); }
+                }
+
+                function createNewFile() {
+                    editor.setMarkdown('');
+                    filenameInput.value = '';
+                    filenameInput.placeholder = 'nuevo-archivo.md';
+                    currentFile = '';
+                    filenameInput.focus();
+                }
+
+                saveBtn.addEventListener('click', saveFile);
+                newFileBtn.addEventListener('click', createNewFile);
+
+                loadFiles();
+
+            } catch (err) {
+                console.error("ERROR FATAL durante la inicialización:", err);
+                alert("Ha ocurrido un error fatal al cargar el editor. Revisa la consola (F12) para más detalles.");
+            }
+        };
+    </script>
+</body>
+</html>
+
